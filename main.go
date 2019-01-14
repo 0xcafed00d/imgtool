@@ -25,7 +25,8 @@ func xpalhex(img image.PalettedImage, pal color.Palette) error {
 }
 
 func xpalhexc(img image.PalettedImage, pal color.Palette) error {
-	fmt.Println("uint32_t palette[] = {")
+	fmt.Printf("const size_t palette_sz = %d;\n", len(pal))
+	fmt.Println("uint32_t palette[palette_sz] = {")
 
 	for i, c := range pal {
 		r, g, b := toRGB(c)
@@ -35,7 +36,21 @@ func xpalhexc(img image.PalettedImage, pal color.Palette) error {
 		}
 	}
 	fmt.Println("\n};")
+	return nil
+}
 
+func xpallua(img image.PalettedImage, pal color.Palette) error {
+	fmt.Println("palette = {")
+
+	for i, c := range pal {
+		r, g, b := toRGB(c)
+		_, _, _, a := c.RGBA()
+		fmt.Printf("\t{r=%d, g=%d, b=%d, a=%d}", r, g, b, a)
+		if i < len(pal)-1 {
+			fmt.Println(",")
+		}
+	}
+	fmt.Println("\n}")
 	return nil
 }
 
@@ -46,6 +61,7 @@ func pico8(img image.PalettedImage, pal color.Palette) error {
 var commands = map[string]cmd{
 	"xpalhex":  {xpalhex, "export palatte as 32bit hex values"},
 	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code"},
+	"xpallua":  {xpallua, "export palatte as {r,g,b} values as lua code"},
 	"pico8":    {pico8, "export pixel data as pico8 sprite data"},
 	"tac08":    {pico8, "export pixel data as tac08 extended sprite data"},
 }
