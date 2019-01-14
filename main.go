@@ -44,8 +44,7 @@ func xpallua(img image.PalettedImage, pal color.Palette) error {
 
 	for i, c := range pal {
 		r, g, b := toRGB(c)
-		_, _, _, a := c.RGBA()
-		fmt.Printf("\t{r=%d, g=%d, b=%d, a=%d}", r, g, b, a)
+		fmt.Printf("\t{r=%d, g=%d, b=%d}", r, g, b)
 		if i < len(pal)-1 {
 			fmt.Println(",")
 		}
