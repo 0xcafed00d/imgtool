@@ -54,6 +54,29 @@ func xpallua(img image.PalettedImage, pal color.Palette) error {
 }
 
 func pico8(img image.PalettedImage, pal color.Palette) error {
+	fmt.Println("__gfx__")
+
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x += 2 {
+			pixel1 := img.ColorIndexAt(x, y)
+			pixel2 := img.ColorIndexAt(x+1, y)
+			fmt.Printf("%02x", (pixel1<<4)|(pixel2&0xf))
+		}
+		fmt.Println("")
+	}
+	return nil
+}
+
+func tac08(img image.PalettedImage, pal color.Palette) error {
+	fmt.Println("__gfx8__")
+
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			pixel := img.ColorIndexAt(x, y)
+			fmt.Printf("%02x", pixel)
+		}
+		fmt.Println("")
+	}
 	return nil
 }
 
@@ -62,7 +85,7 @@ var commands = map[string]cmd{
 	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code"},
 	"xpallua":  {xpallua, "export palatte as {r,g,b} values as lua code"},
 	"pico8":    {pico8, "export pixel data as pico8 sprite data"},
-	"tac08":    {pico8, "export pixel data as tac08 extended sprite data"},
+	"tac08":    {tac08, "export pixel data as tac08 extended sprite data"},
 }
 
 func exitOnError(e error) {
