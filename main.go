@@ -9,22 +9,22 @@ import (
 	"os"
 )
 
-type cmdHandler func(img image.PalettedImage, pal color.Palette) error
+type cmdHandler func(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error)
 
 type cmd struct {
 	cmdHandler
 	desc string
 }
 
-func xpalhex(img image.PalettedImage, pal color.Palette) error {
+func xpalhex(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
 	for _, c := range pal {
 		r, g, b := toRGB(c)
 		fmt.Printf("0x%06x\n", uint32(r)<<16|uint32(g)<<8|uint32(b))
 	}
-	return nil
+	return nil, nil
 }
 
-func xpalhexc(img image.PalettedImage, pal color.Palette) error {
+func xpalhexc(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
 	fmt.Printf("const size_t palette_sz = %d;\n", len(pal))
 	fmt.Println("uint32_t palette[palette_sz] = {")
 
@@ -36,24 +36,24 @@ func xpalhexc(img image.PalettedImage, pal color.Palette) error {
 		}
 	}
 	fmt.Println("\n};")
-	return nil
+	return nil, nil
 }
 
-func xpallua(img image.PalettedImage, pal color.Palette) error {
+func xpallua(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
 	fmt.Println("palette = {")
 
 	for i, c := range pal {
 		r, g, b := toRGB(c)
-		fmt.Printf("\t{r=%d, g=%d, b=%d}", r, g, b)
+		fmt.Printf("\t{%d, %d, %d}", r, g, b)
 		if i < len(pal)-1 {
 			fmt.Println(",")
 		}
 	}
 	fmt.Println("\n}")
-	return nil
+	return nil, nil
 }
 
-func pico8(img image.PalettedImage, pal color.Palette) error {
+func pico8(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
 	fmt.Println("__gfx__")
 
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
@@ -64,10 +64,10 @@ func pico8(img image.PalettedImage, pal color.Palette) error {
 		}
 		fmt.Println("")
 	}
-	return nil
+	return nil, nil
 }
 
-func tac08(img image.PalettedImage, pal color.Palette) error {
+func tac08(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
 	fmt.Println("__gfx8__")
 
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
@@ -77,10 +77,25 @@ func tac08(img image.PalettedImage, pal color.Palette) error {
 		}
 		fmt.Println("")
 	}
-	return nil
+	return nil, nil
+}
+
+func mkpng(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+	return nil, nil
+}
+
+func mkgif(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+	return nil, nil
+}
+
+func rgb2idx(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+	return nil, nil
 }
 
 var commands = map[string]cmd{
+	"png":      {mkpng, "create png file from hex palette"},
+	"gif":      {mkgif, "create gif file from hex palette"},
+	"rgb2idx":  {rgb2idx, "convert input rgb image to indexed colour using supplied hex palette"},
 	"xpalhex":  {xpalhex, "export palatte as 32bit hex values"},
 	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code"},
 	"xpallua":  {xpallua, "export palatte as {r,g,b} values as lua code"},
@@ -155,8 +170,9 @@ func main() {
 	}
 
 	if cmd, ok := commands[command]; ok {
-		err := cmd.cmdHandler(pimg, trimPalette(pal))
+		img, err := cmd.cmdHandler(pimg, trimPalette(pal), os.Args[3:])
 		exitOnError(err)
+		_ = img
 	} else {
 		abend("command: " + command + " not found")
 	}
