@@ -1,30 +1,42 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"image"
 	"image/color"
 	_ "image/gif"
 	_ "image/png"
 	"os"
+	"strconv"
+	"strings"
 )
 
-type cmdHandler func(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error)
+type cmdHandler func(args []string) error
 
 type cmd struct {
 	cmdHandler
 	desc string
 }
 
-func xpalhex(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+func xpalhex(args []string) error {
+	_, pal, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
 	for _, c := range pal {
 		r, g, b := toRGB(c)
 		fmt.Printf("0x%06x\n", uint32(r)<<16|uint32(g)<<8|uint32(b))
 	}
-	return nil, nil
+	return nil
 }
 
-func xpalhexc(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+func xpalhexc(args []string) error {
+	_, pal, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("const size_t palette_sz = %d;\n", len(pal))
 	fmt.Println("uint32_t palette[palette_sz] = {")
 
@@ -36,10 +48,15 @@ func xpalhexc(img image.PalettedImage, pal color.Palette, args []string) (image.
 		}
 	}
 	fmt.Println("\n};")
-	return nil, nil
+	return nil
 }
 
-func xpallua(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+func xpallua(args []string) error {
+	_, pal, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("palette = {")
 
 	for i, c := range pal {
@@ -50,10 +67,15 @@ func xpallua(img image.PalettedImage, pal color.Palette, args []string) (image.P
 		}
 	}
 	fmt.Println("\n}")
-	return nil, nil
+	return nil
 }
 
-func pico8(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+func pico8(args []string) error {
+	img, _, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("__gfx__")
 
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
@@ -64,10 +86,15 @@ func pico8(img image.PalettedImage, pal color.Palette, args []string) (image.Pal
 		}
 		fmt.Println("")
 	}
-	return nil, nil
+	return nil
 }
 
-func tac08(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
+func tac08(args []string) error {
+	img, _, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("__gfx8__")
 
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
@@ -77,19 +104,24 @@ func tac08(img image.PalettedImage, pal color.Palette, args []string) (image.Pal
 		}
 		fmt.Println("")
 	}
-	return nil, nil
+	return nil
 }
 
-func mkpng(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
-	return nil, nil
+func mkpng(args []string) error {
+	p, err := loadHexPalette(args[0])
+	if err != nil {
+		return err
+	}
+	_ = p
+	return nil
 }
 
-func mkgif(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
-	return nil, nil
+func mkgif(args []string) error {
+	return nil
 }
 
-func rgb2idx(img image.PalettedImage, pal color.Palette, args []string) (image.PalettedImage, error) {
-	return nil, nil
+func rgb2idx(args []string) error {
+	return nil
 }
 
 var commands = map[string]cmd{
@@ -142,37 +174,93 @@ func listCommands() {
 	}
 }
 
+func loadImage(name string) (image.Image, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
+}
+
+func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pimg, ok := img.(image.PalettedImage)
+	if !ok {
+		return nil, nil, fmt.Errorf("Not a palettised image: %s", name)
+	}
+
+	pal, ok := img.ColorModel().(color.Palette)
+	if !ok {
+		return nil, nil, fmt.Errorf("Not a palettised image: %s", name)
+	}
+
+	return pimg, pal, nil
+}
+
+func loadHexPalette(name string) (color.Palette, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	p := make(color.Palette, 256)
+	for i := 0; i < len(p); i++ {
+		p[i] = color.RGBA{0, 0, 0, 0xff}
+	}
+
+	line := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		l := scanner.Text()
+		l = strings.Replace(l, "0x", "", -1)
+		n, err := strconv.ParseUint(l, 16, 32)
+		if err != nil {
+			return nil, err
+		}
+		p[line] = color.RGBA{uint8((n >> 16) & 0xff), uint8((n >> 8) & 0xff), uint8(n & 0xff), 0xff}
+		line++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, c := range p {
+		r, g, b := toRGB(c)
+		fmt.Printf("0x%06x\n", uint32(r)<<16|uint32(g)<<8|uint32(b))
+	}
+
+	return p, nil
+}
+
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: imagetool command imagefile")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: imagetool <command> <command args>")
 		listCommands()
 		os.Exit(-1)
 	}
 
 	command := os.Args[1]
-	f := os.Args[2]
-
-	file, err := os.Open(f)
-	exitOnError(err)
-	defer file.Close()
-
-	img, _, err := image.Decode(file)
-	exitOnError(err)
-
-	pimg, ok := img.(image.PalettedImage)
-	if !ok {
-		abend("Not a palletised image")
-	}
-
-	pal, ok := img.ColorModel().(color.Palette)
-	if !ok {
-		abend("Not a palletised image")
-	}
 
 	if cmd, ok := commands[command]; ok {
-		img, err := cmd.cmdHandler(pimg, trimPalette(pal), os.Args[3:])
+		err := cmd.cmdHandler(os.Args[2:])
 		exitOnError(err)
-		_ = img
 	} else {
 		abend("command: " + command + " not found")
 	}
