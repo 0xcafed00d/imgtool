@@ -6,7 +6,7 @@ import (
 	"image"
 	"image/color"
 	_ "image/gif"
-	_ "image/png"
+	"image/png"
 	"os"
 	"strconv"
 	"strings"
@@ -108,12 +108,14 @@ func tac08(args []string) error {
 }
 
 func mkpng(args []string) error {
-	p, err := loadHexPalette(args[0])
+	pal, err := loadHexPalette(args[0])
 	if err != nil {
 		return err
 	}
-	_ = p
-	return nil
+
+	img := createPalettedImage(pal)
+	err = savePNG(img, args[1])
+	return err
 }
 
 func mkgif(args []string) error {
@@ -155,7 +157,7 @@ func toRGB(c color.Color) (r uint8, g uint8, b uint8) {
 }
 
 func isZeroRGB(c color.Color) bool {
-	_r, _g, _b, _ := c.RGBA()
+	_r, _g, _b := toRGB(c)
 	return _r == 0 && _g == 0 && _b == 0
 }
 
@@ -213,6 +215,30 @@ func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) 
 	return pimg, pal, nil
 }
 
+func createPalettedImage(pal color.Palette) image.PalettedImage {
+	w, h := 128, 128
+
+	img := image.NewPaletted(image.Rect(0, 0, w, h), pal)
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetColorIndex(x, y, uint8(((x*2)>>4)+((y*2)&0xf0)))
+		}
+	}
+	return img
+}
+
+func savePNG(img image.PalettedImage, name string) error {
+
+	w, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+
+	err = png.Encode(w, img)
+	return err
+}
+
 func loadHexPalette(name string) (color.Palette, error) {
 	file, err := os.Open(name)
 	if err != nil {
@@ -221,7 +247,7 @@ func loadHexPalette(name string) (color.Palette, error) {
 	defer file.Close()
 	p := make(color.Palette, 256)
 	for i := 0; i < len(p); i++ {
-		p[i] = color.RGBA{0, 0, 0, 0xff}
+		p[i] = color.RGBA{0, 0, 0, 0}
 	}
 
 	line := 0
@@ -239,11 +265,6 @@ func loadHexPalette(name string) (color.Palette, error) {
 
 	if err := scanner.Err(); err != nil {
 		return nil, err
-	}
-
-	for _, c := range p {
-		r, g, b := toRGB(c)
-		fmt.Printf("0x%06x\n", uint32(r)<<16|uint32(g)<<8|uint32(b))
 	}
 
 	return p, nil
