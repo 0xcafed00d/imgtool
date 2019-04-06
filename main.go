@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/gif"
+	"image/gif"
 	"image/png"
 	"os"
 	"strconv"
@@ -119,7 +119,14 @@ func mkpng(args []string) error {
 }
 
 func mkgif(args []string) error {
-	return nil
+	pal, err := loadHexPalette(args[0])
+	if err != nil {
+		return err
+	}
+
+	img := createPalettedImage(pal)
+	err = saveGIF(img, args[1])
+	return err
 }
 
 func rgb2idx(args []string) error {
@@ -212,6 +219,8 @@ func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) 
 		return nil, nil, fmt.Errorf("Not a palettised image: %s", name)
 	}
 
+	pal = trimPalette(pal)
+
 	return pimg, pal, nil
 }
 
@@ -229,13 +238,22 @@ func createPalettedImage(pal color.Palette) image.PalettedImage {
 }
 
 func savePNG(img image.PalettedImage, name string) error {
-
 	w, err := os.Create(name)
 	if err != nil {
 		return err
 	}
 
 	err = png.Encode(w, img)
+	return err
+}
+
+func saveGIF(img image.PalettedImage, name string) error {
+	w, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+
+	err = gif.Encode(w, img, nil)
 	return err
 }
 
@@ -247,7 +265,7 @@ func loadHexPalette(name string) (color.Palette, error) {
 	defer file.Close()
 	p := make(color.Palette, 256)
 	for i := 0; i < len(p); i++ {
-		p[i] = color.RGBA{0, 0, 0, 0}
+		p[i] = color.RGBA{0, 0, 0, 0xff}
 	}
 
 	line := 0
