@@ -12,13 +12,6 @@ import (
 	"strings"
 )
 
-type cmdHandler func(args []string) error
-
-type cmd struct {
-	cmdHandler
-	desc string
-}
-
 func xpalhex(args []string) error {
 	_, pal, err := loadPalettedImage(args[0])
 	if err != nil {
@@ -133,15 +126,32 @@ func rgb2idx(args []string) error {
 	return nil
 }
 
+type cmdHandler func(args []string) error
+
+type cmd struct {
+	cmdHandler
+	desc     string
+	nargs    int
+	argsdesc string
+}
+
 var commands = map[string]cmd{
-	"png":      {mkpng, "create png file from hex palette"},
-	"gif":      {mkgif, "create gif file from hex palette"},
-	"rgb2idx":  {rgb2idx, "convert input rgb image to indexed colour using supplied hex palette"},
-	"xpalhex":  {xpalhex, "export palatte as 32bit hex values"},
-	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code"},
-	"xpallua":  {xpallua, "export palatte as {r,g,b} values as lua code"},
-	"pico8":    {pico8, "export pixel data as pico8 sprite data"},
-	"tac08":    {tac08, "export pixel data as tac08 extended sprite data"},
+	"png": {mkpng, "create png file from hex palette", 2,
+		"<palette.hex> <output.png>"},
+	"gif": {mkgif, "create gif file from hex palette", 2,
+		"<palette.hex> <output.gif>"},
+	"rgb2png": {rgb2idx, "convert input rgb image to indexed colour using supplied hex palette", 3,
+		"<input.[png|gif]> <palette.hex> <output.[png.gif]>"},
+	"xpalhex": {xpalhex, "export palatte as 32bit hex values", 1,
+		"<input.[png|gif]>"},
+	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code", 1,
+		"<input.[png|gif]>"},
+	"xpallua": {xpallua, "export palatte as {r,g,b} values as lua code", 1,
+		"<input.[png|gif]>"},
+	"pico8": {pico8, "export pixel data as pico8 sprite data", 1,
+		"<input.[png|gif]>"},
+	"tac08": {tac08, "export pixel data as tac08 extended sprite data", 1,
+		"<input.[png|gif]>"},
 }
 
 func exitOnError(e error) {
@@ -180,6 +190,7 @@ func listCommands() {
 
 	for k, v := range commands {
 		fmt.Printf("%12s : %s\n", k, v.desc)
+		fmt.Printf("%12s   %s %s %s\n", "", "imgtool", k, v.argsdesc)
 	}
 }
 
@@ -298,7 +309,11 @@ func main() {
 	command := os.Args[1]
 
 	if cmd, ok := commands[command]; ok {
-		err := cmd.cmdHandler(os.Args[2:])
+		args := os.Args[2:]
+		if len(args) != cmd.nargs {
+			abend(fmt.Sprintf("invalid args:  %s %s %s\n", "imgtool", command, cmd.argsdesc))
+		}
+		err := cmd.cmdHandler(args)
 		exitOnError(err)
 	} else {
 		abend("command: " + command + " not found")
