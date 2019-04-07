@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/gif"
 	"image/png"
 	"os"
@@ -106,7 +107,7 @@ func mkpng(args []string) error {
 		return err
 	}
 
-	img := createPalettedImage(pal)
+	img := createPalettedImage(pal, image.Point{128, 128})
 	err = savePNG(img, args[1])
 	return err
 }
@@ -117,41 +118,65 @@ func mkgif(args []string) error {
 		return err
 	}
 
-	img := createPalettedImage(pal)
+	img := createPalettedImage(pal, image.Point{128, 128})
 	err = saveGIF(img, args[1])
 	return err
 }
 
-func rgb2idx(args []string) error {
-	return nil
+func img2idx(args []string) error {
+	src, err := loadImage(args[0])
+	if err != nil {
+		return err
+	}
+
+	pal, err := loadHexPalette(args[1])
+	if err != nil {
+		return err
+	}
+	size := src.Bounds().Size()
+	dst := createPalettedImage(pal, size)
+
+	draw.Draw(dst.(*image.Paletted), src.Bounds(), src, image.Point{}, draw.Src)
+
+	return savePNG(dst, args[2])
 }
 
 type cmdHandler func(args []string) error
 
 type cmd struct {
+	name string
 	cmdHandler
 	desc     string
 	nargs    int
 	argsdesc string
 }
 
-var commands = map[string]cmd{
-	"png": {mkpng, "create png file from hex palette", 2,
+var commands = []cmd{
+	{"png", mkpng, "create png file from hex palette", 2,
 		"<palette.hex> <output.png>"},
-	"gif": {mkgif, "create gif file from hex palette", 2,
+	{"gif", mkgif, "create gif file from hex palette", 2,
 		"<palette.hex> <output.gif>"},
-	"rgb2png": {rgb2idx, "convert input rgb image to indexed colour using supplied hex palette", 3,
+	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette", 3,
 		"<input.[png|gif]> <palette.hex> <output.[png.gif]>"},
-	"xpalhex": {xpalhex, "export palatte as 32bit hex values", 1,
+	{"xpalhex", xpalhex, "export palatte as 32bit hex values", 1,
 		"<input.[png|gif]>"},
-	"xpalhexc": {xpalhexc, "export palatte as 32bit hex values as C code", 1,
+	{"xpalhexc", xpalhexc, "export palatte as 32bit hex values as C code", 1,
 		"<input.[png|gif]>"},
-	"xpallua": {xpallua, "export palatte as {r,g,b} values as lua code", 1,
+	{"xpallua", xpallua, "export palatte as {r,g,b} values as lua code", 1,
 		"<input.[png|gif]>"},
-	"pico8": {pico8, "export pixel data as pico8 sprite data", 1,
+	{"pico8", pico8, "export pixel data as pico8 sprite data", 1,
 		"<input.[png|gif]>"},
-	"tac08": {tac08, "export pixel data as tac08 extended sprite data", 1,
+	{"tac08", tac08, "export pixel data as tac08 extended sprite data", 1,
 		"<input.[png|gif]>"},
+}
+
+func getCommand(name string) *cmd {
+	for i := 0; i < len(commands); i++ {
+		if name == commands[i].name {
+			return &commands[i]
+		}
+	}
+	return nil
 }
 
 func exitOnError(e error) {
@@ -188,9 +213,9 @@ func trimPalette(pal color.Palette) color.Palette {
 func listCommands() {
 	fmt.Printf("Commands:\n")
 
-	for k, v := range commands {
-		fmt.Printf("%12s : %s\n", k, v.desc)
-		fmt.Printf("%12s   %s %s %s\n", "", "imgtool", k, v.argsdesc)
+	for i := 0; i < len(commands); i++ {
+		fmt.Printf("%12s : %s\n", commands[i].name, commands[i].desc)
+		fmt.Printf("%12s   %s %s %s\n", "", "imgtool", commands[i].name, commands[i].argsdesc)
 	}
 }
 
@@ -235,7 +260,7 @@ func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) 
 	return pimg, pal, nil
 }
 
-func createPalettedImage(pal color.Palette) image.PalettedImage {
+func createPalettedImage(pal color.Palette, size image.Point) image.PalettedImage {
 	w, h := 128, 128
 
 	img := image.NewPaletted(image.Rect(0, 0, w, h), pal)
@@ -308,7 +333,8 @@ func main() {
 
 	command := os.Args[1]
 
-	if cmd, ok := commands[command]; ok {
+	cmd := getCommand(command)
+	if cmd != nil {
 		args := os.Args[2:]
 		if len(args) != cmd.nargs {
 			abend(fmt.Sprintf("invalid args:  %s %s %s\n", "imgtool", command, cmd.argsdesc))
