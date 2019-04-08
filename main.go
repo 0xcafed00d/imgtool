@@ -64,8 +64,21 @@ func xpallua(args []string) error {
 	return nil
 }
 
+func verifyImgSize(img image.PalettedImage, size image.Point) error {
+	imgSz := img.Bounds().Size()
+	if !size.Eq(imgSz) {
+		return fmt.Errorf("Input Image must be %vx%v", size.X, size.Y)
+	}
+	return nil
+}
+
 func pico8(args []string) error {
 	img, _, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
+	err = verifyImgSize(img, image.Pt(128, 128))
 	if err != nil {
 		return err
 	}
@@ -85,6 +98,11 @@ func pico8(args []string) error {
 
 func tac08(args []string) error {
 	img, _, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
+	err = verifyImgSize(img, image.Pt(128, 128))
 	if err != nil {
 		return err
 	}
@@ -158,11 +176,11 @@ var commands = []cmd{
 		"<palette.hex> <output.gif>"},
 	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette", 3,
 		"<input.[png|gif]> <palette.hex> <output.[png.gif]>"},
-	{"xpalhex", xpalhex, "export palatte as 32bit hex values", 1,
+	{"xpalhex", xpalhex, "export palette as 32bit hex values", 1,
 		"<input.[png|gif]>"},
-	{"xpalhexc", xpalhexc, "export palatte as 32bit hex values as C code", 1,
+	{"xpalhexc", xpalhexc, "export palette as 32bit hex values as C code", 1,
 		"<input.[png|gif]>"},
-	{"xpallua", xpallua, "export palatte as {r,g,b} values as lua code", 1,
+	{"xpallua", xpallua, "export palette as {r,g,b} values as lua code", 1,
 		"<input.[png|gif]>"},
 	{"pico8", pico8, "export pixel data as pico8 sprite data", 1,
 		"<input.[png|gif]>"},
