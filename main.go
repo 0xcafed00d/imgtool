@@ -119,26 +119,14 @@ func tac08(args []string) error {
 	return nil
 }
 
-func mkpng(args []string) error {
+func mkimg(args []string) error {
 	pal, err := loadHexPalette(args[0])
 	if err != nil {
 		return err
 	}
 
 	img := createPalettedImage(pal, image.Point{128, 128})
-	err = savePNG(img, args[1])
-	return err
-}
-
-func mkgif(args []string) error {
-	pal, err := loadHexPalette(args[0])
-	if err != nil {
-		return err
-	}
-
-	img := createPalettedImage(pal, image.Point{128, 128})
-	err = saveGIF(img, args[1])
-	return err
+	return saveImg(img, args[1])
 }
 
 func img2idx(args []string) error {
@@ -147,7 +135,7 @@ func img2idx(args []string) error {
 		return err
 	}
 
-	pal, err := loadHexPalette(args[1])
+	pal, err := loadHexPalette(args[2])
 	if err != nil {
 		return err
 	}
@@ -156,7 +144,11 @@ func img2idx(args []string) error {
 
 	draw.Draw(dst.(*image.Paletted), src.Bounds(), src, image.Point{}, draw.Src)
 
-	return savePNG(dst, args[2])
+	return saveImg(dst, args[1])
+}
+
+func p8spr2img(args []string) error {
+	return nil
 }
 
 type cmdHandler func(args []string) error
@@ -170,12 +162,10 @@ type cmd struct {
 }
 
 var commands = []cmd{
-	{"png", mkpng, "create png file from hex palette", 2,
-		"<palette.hex> <output.png>"},
-	{"gif", mkgif, "create gif file from hex palette", 2,
-		"<palette.hex> <output.gif>"},
+	{"pal2img", mkimg, "create paletted image file from hex palette", 2,
+		"<palette.hex> <output.[png/gif]>"},
 	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette", 3,
-		"<input.[png|gif]> <palette.hex> <output.[png.gif]>"},
+		"<input.[png|gif]> <output.[png/gif]> <palette.hex>"},
 	{"xpalhex", xpalhex, "export palette as 32bit hex values", 1,
 		"<input.[png|gif]>"},
 	{"xpalhexc", xpalhexc, "export palette as 32bit hex values as C code", 1,
@@ -186,6 +176,8 @@ var commands = []cmd{
 		"<input.[png|gif]>"},
 	{"tac08", tac08, "export pixel data as tac08 extended sprite data", 1,
 		"<input.[png|gif]>"},
+	{"p8spr2img", p8spr2img, "extract sprite image from .p8 pico-8 ascii cart file", 1,
+		"<input.p8> <output.[png/gif]> <palette.hex>"},
 }
 
 func getCommand(name string) *cmd {
@@ -308,6 +300,16 @@ func saveGIF(img image.PalettedImage, name string) error {
 
 	err = gif.Encode(w, img, nil)
 	return err
+}
+
+func saveImg(img image.PalettedImage, name string) error {
+	if strings.HasSuffix(name, ".gif") {
+		return saveGIF(img, name)
+	}
+	if strings.HasSuffix(name, ".png") {
+		return savePNG(img, name)
+	}
+	return fmt.Errorf("Invalid file extension: (%v) please use .gif or .png", name)
 }
 
 func loadHexPalette(name string) (color.Palette, error) {
