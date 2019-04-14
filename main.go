@@ -64,6 +64,24 @@ func xpallua(args []string) error {
 	return nil
 }
 
+func xpalgo(args []string) error {
+	_, pal, err := loadPalettedImage(args[0])
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("package main\n")
+	fmt.Println("import \"image/color\"\n")
+	fmt.Println("var palette = []color.RGBA{")
+
+	for _, c := range pal {
+		r, g, b := toRGB(c)
+		fmt.Printf("\t{%d, %d, %d, 0xff},\n", r, g, b)
+	}
+	fmt.Println("}")
+	return nil
+}
+
 func verifyImgSize(img image.PalettedImage, size image.Point) error {
 	imgSz := img.Bounds().Size()
 	if !size.Eq(imgSz) {
@@ -168,9 +186,11 @@ var commands = []cmd{
 		"<input.[png|gif]> <output.[png/gif]> <palette.hex>"},
 	{"xpalhex", xpalhex, "export palette as 32bit hex values", 1,
 		"<input.[png|gif]>"},
-	{"xpalhexc", xpalhexc, "export palette as 32bit hex values as C code", 1,
+	{"xpalhexc", xpalhexc, "export palette as 32bit hex values in C code", 1,
 		"<input.[png|gif]>"},
-	{"xpallua", xpallua, "export palette as {r,g,b} values as lua code", 1,
+	{"xpallua", xpallua, "export palette as {r,g,b} values in lua code", 1,
+		"<input.[png|gif]>"},
+	{"xpalgo", xpalgo, "export palette as color.RGBA values in go code", 1,
 		"<input.[png|gif]>"},
 	{"pico8", pico8, "export pixel data as pico8 sprite data", 1,
 		"<input.[png|gif]>"},
