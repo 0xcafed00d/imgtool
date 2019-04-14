@@ -26,7 +26,7 @@ func xpalhex(args []string) error {
 }
 
 func xpalhexc(args []string) error {
-	_, pal, err := loadPalettedImage(args[0])
+	pal, err := loadPalette(args[0])
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func xpalhexc(args []string) error {
 }
 
 func xpallua(args []string) error {
-	_, pal, err := loadPalettedImage(args[0])
+	pal, err := loadPalette(args[0])
 	if err != nil {
 		return err
 	}
@@ -65,18 +65,18 @@ func xpallua(args []string) error {
 }
 
 func xpalgo(args []string) error {
-	_, pal, err := loadPalettedImage(args[0])
+	pal, err := loadPalette(args[0])
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("package main\n")
 	fmt.Println("import \"image/color\"\n")
-	fmt.Println("var palette = []color.RGBA{")
+	fmt.Println("var palette = color.Palette{")
 
 	for _, c := range pal {
 		r, g, b := toRGB(c)
-		fmt.Printf("\t{%d, %d, %d, 0xff},\n", r, g, b)
+		fmt.Printf("\tcolor.RGBA{%d, %d, %d, 0xff},\n", r, g, b)
 	}
 	fmt.Println("}")
 	return nil
@@ -153,10 +153,14 @@ func img2idx(args []string) error {
 		return err
 	}
 
-	pal, err := loadHexPalette(args[2])
-	if err != nil {
-		return err
+	pal := pico8Palette
+	if len(args) >= 3 {
+		pal, err = loadHexPalette(args[2])
+		if err != nil {
+			return err
+		}
 	}
+
 	size := src.Bounds().Size()
 	dst := createPalettedImage(pal, size)
 
@@ -182,16 +186,16 @@ type cmd struct {
 var commands = []cmd{
 	{"pal2img", mkimg, "create paletted image file from hex palette", 2,
 		"<palette.hex> <output.[png/gif]>"},
-	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette", 3,
-		"<input.[png|gif]> <output.[png/gif]> <palette.hex>"},
+	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette \n\t\tor default pico8 palette if none is specified", 2,
+		"<input.[png|gif]> <output.[png/gif]> [<palette.hex>]"},
 	{"xpalhex", xpalhex, "export palette as 32bit hex values", 1,
 		"<input.[png|gif]>"},
 	{"xpalhexc", xpalhexc, "export palette as 32bit hex values in C code", 1,
-		"<input.[png|gif]>"},
+		"<input.[png|gif|hex]>"},
 	{"xpallua", xpallua, "export palette as {r,g,b} values in lua code", 1,
-		"<input.[png|gif]>"},
+		"<input.[png|gif|hex]>"},
 	{"xpalgo", xpalgo, "export palette as color.RGBA values in go code", 1,
-		"<input.[png|gif]>"},
+		"<input.[png|gif|hex]>"},
 	{"pico8", pico8, "export pixel data as pico8 sprite data", 1,
 		"<input.[png|gif]>"},
 	{"tac08", tac08, "export pixel data as tac08 extended sprite data", 1,
@@ -244,8 +248,8 @@ func listCommands() {
 	fmt.Printf("Commands:\n")
 
 	for i := 0; i < len(commands); i++ {
-		fmt.Printf("%12s : %s\n", commands[i].name, commands[i].desc)
-		fmt.Printf("%12s   %s %s %s\n", "", "imgtool", commands[i].name, commands[i].argsdesc)
+		fmt.Printf("%13s : %s\n", commands[i].name, commands[i].desc)
+		fmt.Printf("%13s   %s %s %s\n", "", "> imgtool", commands[i].name, commands[i].argsdesc)
 	}
 }
 
@@ -332,6 +336,16 @@ func saveImg(img image.PalettedImage, name string) error {
 	return fmt.Errorf("Invalid file extension: (%v) please use .gif or .png", name)
 }
 
+func loadPalette(name string) (pal color.Palette, err error) {
+	if strings.HasSuffix(name, ".hex") {
+		pal, err = loadHexPalette(name)
+		pal = trimPalette(pal)
+	} else {
+		_, pal, err = loadPalettedImage(name)
+	}
+	return
+}
+
 func loadHexPalette(name string) (color.Palette, error) {
 	file, err := os.Open(name)
 	if err != nil {
@@ -375,7 +389,7 @@ func main() {
 	cmd := getCommand(command)
 	if cmd != nil {
 		args := os.Args[2:]
-		if len(args) != cmd.nargs {
+		if len(args) < cmd.nargs {
 			abend(fmt.Sprintf("invalid args:  %s %s %s\n", "imgtool", command, cmd.argsdesc))
 		}
 		err := cmd.cmdHandler(args)
