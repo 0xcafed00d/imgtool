@@ -13,6 +13,9 @@ import (
 	"strings"
 )
 
+type cartSection []string
+type cart map[string]cartSection
+
 func xpalhex(args []string) error {
 	_, pal, err := loadPalettedImage(args[0])
 	if err != nil {
@@ -155,7 +158,7 @@ func img2idx(args []string) error {
 
 	pal := pico8Palette
 	if len(args) >= 3 {
-		pal, err = loadHexPalette(args[2])
+		pal, err = loadPalette(args[2])
 		if err != nil {
 			return err
 		}
@@ -170,7 +173,28 @@ func img2idx(args []string) error {
 }
 
 func p8spr2img(args []string) error {
-	return nil
+	c, err := loadCart(args[0])
+	if err != nil {
+		return err
+	}
+
+	img := createPalettedImage(pico8Palette, image.Pt(128, 128)).(*image.Paletted)
+
+	if sect, ok := c["__gfx__"]; ok {
+		i := 0
+		for _, l := range sect {
+			for n := 0; n < len(l); n++ {
+				idx, err := strconv.ParseInt(l[n:n+1], 16, 8)
+				if err != nil {
+					return err
+				}
+				img.Pix[i] = uint8(idx)
+				i++
+			}
+		}
+	}
+
+	return saveImg(img, args[1])
 }
 
 type cmdHandler func(args []string) error
@@ -184,10 +208,10 @@ type cmd struct {
 }
 
 var commands = []cmd{
-	{"pal2img", mkimg, "create paletted image file from hex palette", 2,
-		"<palette.hex> <output.[png/gif]>"},
-	{"img2idx", img2idx, "convert input image to indexed colour using supplied hex palette \n\t\tor default pico8 palette if none is specified", 2,
-		"<input.[png|gif]> <output.[png/gif]> [<palette.hex>]"},
+	{"pal2img", mkimg, "create sample paletted image file from palette", 2,
+		"<palette.[png|gif|hex]> <output.[png/gif]>"},
+	{"img2idx", img2idx, "convert input image to indexed colour using supplied palette \n\t\tor default pico8 palette if none is specified", 2,
+		"<input.[png|gif]> <output.[png/gif]> [<palette.[png|gif|hex]>]"},
 	{"xpalhex", xpalhex, "export palette as 32bit hex values", 1,
 		"<input.[png|gif]>"},
 	{"xpalhexc", xpalhexc, "export palette as 32bit hex values in C code", 1,
@@ -196,12 +220,12 @@ var commands = []cmd{
 		"<input.[png|gif|hex]>"},
 	{"xpalgo", xpalgo, "export palette as color.RGBA values in go code", 1,
 		"<input.[png|gif|hex]>"},
-	{"pico8", pico8, "export pixel data as pico8 sprite data", 1,
+	{"pico8", pico8, "export pixel data from image as pico8 sprite data", 1,
 		"<input.[png|gif]>"},
-	{"tac08", tac08, "export pixel data as tac08 extended sprite data", 1,
+	{"tac08", tac08, "export pixel data from image as tac08 extended sprite data", 1,
 		"<input.[png|gif]>"},
-	{"p8spr2img", p8spr2img, "extract sprite image from .p8 pico-8 ascii cart file", 1,
-		"<input.p8> <output.[png/gif]> <palette.hex>"},
+	{"p8spr2img", p8spr2img, "extract sprite image from .p8 pico-8 ascii cart file\n\t\tusing supplied palette or default pico8 palette if none is specified", 2,
+		"<input.p8> <output.[png/gif]> [<palette.[png|gif|hex]>]"},
 }
 
 func getCommand(name string) *cmd {
@@ -242,6 +266,15 @@ func trimPalette(pal color.Palette) color.Palette {
 		pal = pal[:len(pal)-1]
 	}
 	return pal
+}
+
+func fillPalette(pal color.Palette) color.Palette {
+	p := make(color.Palette, 256)
+	for i := range p {
+		p[i] = color.RGBA{0, 0, 0, 0xff}
+	}
+	copy(p, pal)
+	return p
 }
 
 func listCommands() {
@@ -377,12 +410,54 @@ func loadHexPalette(name string) (color.Palette, error) {
 	return p, nil
 }
 
+var validSections = map[string]bool{
+	"__lua__":   true,
+	"__gfx__":   true,
+	"__gfx8__":  true,
+	"__gff__":   true,
+	"__map__":   true,
+	"__sfx__":   true,
+	"__music__": true,
+	"__label__": true,
+}
+
+func loadCart(name string) (cart, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	c := cart{}
+	currentSection := "__header__"
+	c[currentSection] = cartSection{}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		l := scanner.Text()
+		if validSections[l] {
+			currentSection = l
+			c[currentSection] = cartSection{}
+		} else {
+			c[currentSection] = append(c[currentSection], l)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: imagetool <command> <command args>")
 		listCommands()
 		os.Exit(-1)
 	}
+
+	pico8Palette = fillPalette(pico8Palette)
 
 	command := os.Args[1]
 
