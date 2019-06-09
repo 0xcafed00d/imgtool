@@ -141,7 +141,7 @@ func tac08(args []string) error {
 }
 
 func mkimg(args []string) error {
-	pal, err := loadHexPalette(args[0])
+	pal, err := loadPalette(args[0])
 	if err != nil {
 		return err
 	}
@@ -328,6 +328,8 @@ func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) 
 }
 
 func createPalettedImage(pal color.Palette, size image.Point) image.PalettedImage {
+
+	pal = fillPalette(pal)
 
 	img := image.NewPaletted(image.Rectangle{Max: size}, pal)
 
