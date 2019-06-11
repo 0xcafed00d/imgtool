@@ -178,7 +178,15 @@ func p8spr2img(args []string) error {
 		return err
 	}
 
-	img := createPalettedImage(pico8Palette, image.Pt(128, 128)).(*image.Paletted)
+	pal := pico8Palette
+	if len(args) >= 3 {
+		pal, err = loadPalette(args[2])
+		if err != nil {
+			return err
+		}
+	}
+
+	img := createPalettedImage(pal, image.Pt(128, 128)).(*image.Paletted)
 
 	if sect, ok := c["__gfx__"]; ok {
 		i := 0
