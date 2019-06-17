@@ -336,14 +336,17 @@ func loadPalettedImage(name string) (image.PalettedImage, color.Palette, error) 
 }
 
 func createPalettedImage(pal color.Palette, size image.Point) image.PalettedImage {
-
+	palsize := len(pal)
 	pal = fillPalette(pal)
-
 	img := image.NewPaletted(image.Rectangle{Max: size}, pal)
 
 	for y := 0; y < size.Y; y++ {
 		for x := 0; x < size.X; x++ {
-			img.SetColorIndex(x, y, uint8(((x*2)>>4)+((y*2)&0xf0)))
+			i := uint8(((x * 2) >> 4) + ((y * 2) & 0xf0))
+			if int(i) >= palsize {
+				i = 0
+			}
+			img.SetColorIndex(x, y, i)
 		}
 	}
 	return img
